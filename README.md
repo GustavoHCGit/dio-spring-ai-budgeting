@@ -57,7 +57,7 @@ A chave não deve ser colocada no código nem commitada no Git. O repositório i
 Entre nesta pasta:
 
 ```bash
-cd 05-spring-ai
+cd dio-spring-ai-budgeting
 ```
 
 Suba o banco:

@@ -50,7 +50,7 @@ As entradas inválidas retornam HTTP `400` no formato `ProblemDetail`, com títu
 - Docker e Docker Compose;
 - uma chave de API compatível com OpenAI para os fluxos de IA.
 
-A chave não deve ser colocada no código nem commitada no Git.
+A chave não deve ser colocada no código nem commitada no Git. O repositório inclui `env/.env.example` apenas como modelo; o ficheiro real `env/.env` é ignorado pelo Git.
 
 ## Como executar
 
@@ -66,11 +66,17 @@ Suba o banco:
 docker compose up -d
 ```
 
-Configure a chave da API apenas na sessão do terminal:
+Copie o modelo e preencha a chave localmente:
 
 ```bash
-export OPENAI_API_KEY="sua-chave-aqui"
+cp env/.env.example env/.env
+# edite env/.env e informe OPENAI_API_KEY
+set -a
+source env/.env
+set +a
 ```
+
+O ficheiro `env/.env` nunca deve ser enviado para o GitHub.
 
 Execute os testes:
 

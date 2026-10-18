@@ -1,191 +1,136 @@
-# API Inteligente de Orçamento — Spring Boot e Spring AI
+# API de orçamento — Spring Boot e Spring AI
 
-Projeto final da trilha **Java Itaú com Inteligência Artificial**, baseado no desafio da DIO. A aplicação administra transações financeiras e permite processar comandos de voz usando Spring AI.
+API Java 21/Spring Boot para registrar transações, consultar por categoria e processar áudio com modelos Spring AI/OpenAI. O banco de produção/desenvolvimento local é MySQL; os testes unitários não usam banco, Docker, OpenAI ou rede externa.
 
-## O que o projeto faz
+## Escopo implementado
 
-A API oferece dois fluxos principais:
-
-- criação de transações via REST;
-- consulta de transações por categoria;
-- envio de áudio para transcrição, interpretação com IA, execução de uma função real da aplicação e geração de resposta em áudio.
-
-Fluxo de IA:
-
-```text
-áudio -> TranscriptionModel -> ChatClient -> Tool Calling -> caso de uso -> TextToSpeechModel -> MP3
-```
-
-A aplicação mantém as responsabilidades separadas em `domain`, `application` e `infrastructure`.
-
-## Melhoria implementada
-
-Foi adicionada **validação centralizada de transações** no `PersistTransactionUseCase`. A regra é aplicada tanto ao endpoint REST quanto ao Tool Calling da IA.
-
-A API rejeita:
-
-- dados ausentes;
-- descrição vazia ou apenas com espaços;
-- valor menor ou igual a zero;
-- categoria inexistente.
-
-As entradas inválidas retornam HTTP `400` no formato `ProblemDetail`, com título e mensagem explicando o problema. A validação no caso de uso evita que uma chamada REST e uma chamada feita pela IA tenham regras diferentes.
-
-## Tecnologias
-
-- Java 21;
-- Spring Boot 4;
-- Spring AI 2.0.0-M4;
-- Spring Web;
-- Spring Data JPA;
-- MySQL 9;
-- Docker Compose;
-- Gradle;
-- JUnit 5 e AssertJ;
-- OpenAI para chat, transcrição e síntese de voz.
+- `POST /transactions`: valida descrição, categoria e valor em centavos antes de persistir.
+- `GET /transactions/{category}`: lista transações da categoria (`GROCERIES`, `PHARMA` ou `AUTO`).
+- `POST /transactions/ai`: recebe um arquivo multipart de áudio, transcreve, interpreta a mensagem, usa as ferramentas da aplicação e gera MP3.
+- Respostas de entradas inválidas usam `ProblemDetail` com HTTP 400.
+- Valores monetários nas respostas são `BigDecimal`, com duas casas decimais; por exemplo, `8500` centavos são serializados como `85.00`.
+- O upload de áudio aceita MIME iniciado por `audio/`, rejeita arquivo vazio e limita o tamanho a 10 MB. A validação usa o MIME informado pelo multipart; ela não substitui uma inspeção antivírus do conteúdo.
 
 ## Pré-requisitos
 
 - JDK 21;
-- Docker e Docker Compose;
-- uma chave de API compatível com OpenAI para os fluxos de IA.
+- Gradle Wrapper (`./gradlew`);
+- Docker e Docker Compose apenas para o caminho MySQL/integração;
+- `OPENAI_API_KEY` somente para os testes e o endpoint que realmente chamam OpenAI.
 
-A chave não deve ser colocada no código nem commitada no Git.
+Nunca coloque chaves ou senhas reais no Git. O `.env` está no `.gitignore`.
 
-## Como executar
+## Testes offline (verificados)
 
-Entre nesta pasta:
-
-```bash
-cd dio-spring-ai-budgeting
-```
-
-Suba o banco:
+O teste padrão exclui a tag `integration`. Assim, o build limpo não carrega o contexto Spring com MySQL nem chama OpenAI.
 
 ```bash
-docker compose up -d
+./gradlew clean test --offline
 ```
 
-Configure a chave apenas na sessão local do terminal:
+Também é possível executar o build local sem a flag de cache offline:
 
 ```bash
-export OPENAI_API_KEY="sua-chave-aqui"
+./gradlew clean build
 ```
 
-Não coloque chaves reais em ficheiros versionados.
+Os testes unitários atuais cobrem o caso de uso e o controller com MockMvc: `ProblemDetail`, JSON inválido, tipo/tamanho/arquivo vazio no áudio, fluxo de áudio com modelos mockados e serialização monetária. O fluxo de áudio do teste não faz chamadas externas.
 
-Execute os testes:
+## Docker/MySQL (não verificado neste ambiente)
+
+O Docker não estava disponível no ambiente de auditoria (`docker: command not found`), portanto os comandos desta seção não foram executados aqui.
+
+1. Crie o arquivo local de variáveis:
+
+   ```bash
+   cp .env.example .env
+   # edite .env e troque os dois placeholders por senhas locais
+   ```
+
+2. Suba o MySQL:
+
+   ```bash
+   docker compose --env-file .env up -d
+   docker compose --env-file .env ps
+   ```
+
+   O serviço usa o banco `transaction`, usuário `app` e publica o MySQL local na porta `3307`. As credenciais do compose vêm de `MYSQL_ROOT_PASSWORD` e `MYSQL_PASSWORD`; o arquivo `.env` não deve ser commitado.
+
+3. Inicie a aplicação:
+
+   ```bash
+   ./gradlew bootRun
+   ```
+
+   A inicialização da aplicação com Docker/MySQL e o teste de persistência ponta a ponta permanecem **não verificados** nesta auditoria.
+
+## Testes de integração (não verificados)
+
+`BudgetingApplicationTests` e os testes Spring AI são marcados com `integration` e não rodam em `test`. Para tentar o contexto com serviços preparados, configure explicitamente o ambiente local e execute:
 
 ```bash
-./gradlew test
+export RUN_INTEGRATION_TESTS=true
+./gradlew integrationTest
 ```
 
-Inicie a aplicação:
+O contexto precisa de um MySQL acessível e de suas configurações de conexão. Os testes OpenAI continuam desabilitados sem `OPENAI_API_KEY`. A integração não foi executada nesta auditoria porque Docker/MySQL não estavam disponíveis.
+
+## OpenAI e custo (não verificado e potencialmente cobrado)
+
+O endpoint de áudio e estas classes fazem chamadas externas quando habilitados:
+
+- `OpenAiChatClientIT`;
+- `OpenAiChatModelIT`;
+- `OpenAiSpeechModelIT`;
+- `OpenAiTranscriptionModelIT`;
+- `ToolCallingIT`.
+
+Todos os testes acima exigem `OPENAI_API_KEY` e são `integration`. O build padrão não fornece essa variável e não faz chamadas pagas. Não foi configurada nem usada chave OpenAI nesta auditoria. Se optar por executá-los, confirme limites e cobrança da sua conta antes:
 
 ```bash
-./gradlew bootRun
+export OPENAI_API_KEY="sua-chave-local"
+export RUN_INTEGRATION_TESTS=true
+./gradlew integrationTest
 ```
 
-O MySQL é exposto localmente na porta `3307`. A aplicação usa as configurações do Spring Boot Docker Compose para iniciar a infraestrutura de desenvolvimento.
+Esse comando não foi executado aqui.
 
-## Exemplos de uso
+## Exemplos de contrato
 
-### Criar uma transação válida
-
-```bash
-curl -X POST http://localhost:8080/transactions \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "description": "Compras do mercado",
-    "category": "GROCERIES",
-    "amount": 8500
-  }'
-```
-
-O campo `amount` é informado em centavos. No exemplo, `8500` representa R$ 85,00.
-
-### Validar uma transação inválida
+Criar transação (o valor é informado em centavos):
 
 ```bash
 curl -i -X POST http://localhost:8080/transactions \
   -H 'Content-Type: application/json' \
-  -d '{
-    "description": "   ",
-    "category": "GROCERIES",
-    "amount": 0
-  }'
+  -d '{"description":"Compras do mercado","category":"GROCERIES","amount":8500}'
 ```
 
-A resposta esperada é HTTP `400`, com um problema semelhante a:
-
-```json
-{
-  "type": "about:blank",
-  "title": "Transação inválida",
-  "status": 400,
-  "detail": "A descrição da transação é obrigatória"
-}
-```
-
-### Consultar por categoria
+Exemplo de entrada inválida:
 
 ```bash
-curl http://localhost:8080/transactions/GROCERIES
+curl -i -X POST http://localhost:8080/transactions \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"   ","category":"GROCERIES","amount":0}'
 ```
 
-### Processar um comando de voz
+A resposta é HTTP 400 com `Content-Type: application/problem+json`, título `Transação inválida` e detalhe informando a primeira validação encontrada. As respostas HTTP reais desses exemplos dependem de a aplicação e o MySQL estarem executando; não foram capturadas nesta auditoria.
+
+Processar áudio (requer OpenAI e pode gerar custo):
 
 ```bash
-curl -X POST http://localhost:8080/transactions/ai \
+curl -i -X POST http://localhost:8080/transactions/ai \
   -F 'file=@caminho/para/audio.m4a' \
   --output resposta.mp3
 ```
 
-O áudio deve descrever uma operação financeira em português. A resposta é um ficheiro MP3 gerado a partir da resposta textual do assistente.
-
-## Testes
-
-Os testes unitários da melhoria estão em:
-
-```text
-src/test/java/dio/budgeting/PersistTransactionUseCaseTest.java
-```
-
-Eles cobrem:
-
-- persistência de uma transação válida;
-- descrição vazia;
-- valor não positivo;
-- categoria ausente;
-- garantia de que entradas inválidas não chegam ao repositório.
-
-Os testes de integração com OpenAI são executados apenas quando `OPENAI_API_KEY` está definida, para evitar chamadas externas acidentais.
-
-## Estrutura principal
+## Estrutura
 
 ```text
 src/main/java/dio/budgeting/
 ├── application/
-│   ├── input/
-│   ├── output/
-│   ├── InvalidTransactionException.java
-│   └── ...UseCase.java
 ├── domain/
 ├── infrastructure/http/
 └── infrastructure/persistence/
 ```
 
-## O que foi aprendido
-
-- como integrar Spring AI com uma aplicação Spring Boot;
-- como separar domínio, casos de uso e adaptadores;
-- como usar `ChatClient` e Tool Calling;
-- como transcrever áudio e gerar voz;
-- como persistir dados com JPA e MySQL;
-- como centralizar regras de validação no caso de uso;
-- como transformar uma exceção de negócio numa resposta HTTP padronizada;
-- como testar regras de negócio sem depender de banco ou de chamadas externas de IA.
-
-## Observação sobre a entrega
-
-Antes de enviar o projeto à DIO, substitua este README por uma versão revista por si, confirme que os comandos funcionam no seu computador e inclua as suas próprias evidências de execução, como prints, respostas HTTP ou logs de teste.
+O Gradle separa os caminhos por tag: `test` é offline por padrão; `integrationTest` executa apenas testes marcados como `integration` e depende dos serviços/configurações descritos acima.

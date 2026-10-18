@@ -30,7 +30,7 @@ class PersistTransactionUseCaseTest {
         var output = useCase.execute(new PersistTransactionInput("Mercado", 8500, Category.GROCERIES));
 
         assertThat(output.description()).isEqualTo("Mercado");
-        assertThat(output.value()).isEqualTo(85.0);
+        assertThat(output.value()).isEqualByComparingTo("85.00");
         assertThat(repository.transactions).hasSize(1);
     }
 

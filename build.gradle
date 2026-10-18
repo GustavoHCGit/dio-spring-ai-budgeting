@@ -38,4 +38,17 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // O ciclo padrão deve permanecer determinístico, local e sem banco/IA externos.
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Executa testes marcados como integração; requer os serviços descritos no README.'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    shouldRunAfter tasks.named('test')
 }

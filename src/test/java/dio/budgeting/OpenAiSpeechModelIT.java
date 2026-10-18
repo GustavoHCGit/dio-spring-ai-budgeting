@@ -1,6 +1,7 @@
 package dio.budgeting;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.openai.OpenAiAudioSpeechModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import java.nio.file.Files;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Tag("integration")
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 public class OpenAiSpeechModelIT {
     @Autowired
